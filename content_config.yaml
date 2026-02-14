@@ -1,0 +1,34 @@
+site:
+  title: "まる | 日本株の学びと記録"
+  tagline: "株式投資と学びの記録をお届けします"
+  handle: "maru_update"
+
+links:
+  # note のプロフィールURL（任意）
+  note_profile: ""
+  # Shopifyストア
+  shopify_store: "https://0shhwt-xp.myshopify.com"
+  # SNS
+  instagram: "https://www.instagram.com/maru_update/"
+  threads: "https://www.threads.net/@maru_update"
+  # 勉強会フォーム（URLを貼るだけでボタンが有効化）
+  study_form: ""
+
+embeds:
+  note_html_path: "embeds/note_embeds.html"
+  shopify_html_path: "embeds/shopify_buy_button.html"
+
+market:
+  # 1M / 6M / 1Y / 5Y の初期値
+  period_default: "6mo"
+  items:
+    - name: "日経平均"
+      ticker_candidates: ["^N225"]
+      kind: "index"
+    - name: "ドル円"
+      ticker_candidates: ["JPY=X"]
+      kind: "fx"
+    - name: "日本10年債利回り"
+      # まず「利回り系ティッカー」を試して、ダメなら国債ETFへフォールバック
+      ticker_candidates: ["^JP10Y", "^JPN10Y", "JP10Y=RR", "236A.T"]
+      kind: "yield_or_bond"
