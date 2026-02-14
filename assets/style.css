@@ -1,0 +1,85 @@
+/* ===== Maru site custom skin for Streamlit ===== */
+:root{
+  --maru-accent:#0E6A6B;
+  --maru-ink:#0b1220;
+  --maru-muted:#6b7280;
+  --maru-card:#ffffffcc;
+  --maru-border:rgba(17,24,39,.10);
+  --maru-shadow:0 10px 30px rgba(2, 8, 23, .06);
+}
+
+.block-container { padding-top: 2.2rem; max-width: 1120px; }
+
+[data-testid="stHeader"] { background: transparent; }
+[data-testid="stToolbar"] { visibility: hidden; height: 0; }
+footer { visibility: hidden; }
+
+.stApp {
+  background: radial-gradient(1200px 600px at 30% 0%, rgba(14,106,107,.16), transparent 60%),
+              radial-gradient(900px 500px at 90% 10%, rgba(59,130,246,.12), transparent 55%),
+              linear-gradient(180deg, #f7fafc 0%, #ffffff 40%, #f6f7fb 100%);
+  color: var(--maru-ink);
+}
+
+h1, h2, h3 { letter-spacing: .2px; }
+.small-muted { color: var(--maru-muted); font-size: .92rem; }
+
+.hero {
+  display:flex; gap:18px; align-items:center;
+  padding: 18px 18px;
+  border:1px solid var(--maru-border);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.70));
+  box-shadow: var(--maru-shadow);
+}
+.hero .title { font-size: 1.85rem; font-weight: 750; line-height:1.2; }
+.hero .tagline { margin-top:6px; color: var(--maru-muted); }
+
+.card {
+  border: 1px solid var(--maru-border);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: var(--maru-card);
+  box-shadow: 0 8px 24px rgba(2, 8, 23, .05);
+}
+.card-title { font-weight: 700; margin-bottom: 6px; }
+
+.pills { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+.pill {
+  display:inline-flex; align-items:center; gap:8px;
+  padding: 10px 12px;
+  border: 1px solid var(--maru-border);
+  border-radius: 999px;
+  background: rgba(255,255,255,.85);
+  box-shadow: 0 6px 18px rgba(2,8,23,.05);
+}
+.pill b { font-size: .95rem; }
+.pill span { color: var(--maru-muted); font-size: .85rem; }
+.pill:hover { border-color: rgba(14,106,107,.45); }
+
+.stButton>button {
+  border-radius: 999px;
+  border: 1px solid rgba(14,106,107,.25);
+  background: rgba(14,106,107,.08);
+  color: var(--maru-ink);
+  padding: .55rem 1.05rem;
+}
+.stButton>button:hover { border-color: rgba(14,106,107,.45); background: rgba(14,106,107,.12); }
+
+.metric-row {
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 12px;
+}
+@media (max-width: 900px){
+  .metric-row { grid-template-columns: 1fr; }
+}
+
+.embed-wrap {
+  border: 1px solid var(--maru-border);
+  border-radius: 18px;
+  background: rgba(255,255,255,.78);
+  box-shadow: 0 10px 28px rgba(2,8,23,.06);
+  overflow: hidden;
+}
+.embed-pad { padding: 10px 12px; }
