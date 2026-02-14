@@ -5,13 +5,16 @@ import yaml
 from pathlib import Path
 import streamlit.components.v1 as components
 from PIL import Image
+import plotly.express as px
 
+# -----------------
+# Config
+# -----------------
 DEFAULT_CONFIG = {
     "site": {
         "title": "まる | 日本株の学びと記録",
         "tagline": "株式投資と学びの記録をお届けします",
         "handle": "maru_update",
-        "accent": "#0E6A6B",
     },
     "links": {
         "note_profile": "",
@@ -28,45 +31,39 @@ DEFAULT_CONFIG = {
         "period_default": "6mo",
         "items": [
             {"name": "日経平均", "ticker": "^N225"},
-            {"name": "TOPIX", "ticker": "^TOPX"},
             {"name": "ドル円", "ticker": "JPY=X"},
-            {"name": "日本国債(7-10年)ETF（利回りの代替）", "ticker": "236A.T"},
+            {"name": "日本10年（代替：国債ETF）", "ticker": "236A.T"},
         ],
     },
 }
 
-def load_config(path: str = "content_config.yaml") -> dict:
+def load_config(path="content_config.yaml"):
     p = Path(path)
     if not p.exists():
         return DEFAULT_CONFIG
-    try:
-        cfg = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return DEFAULT_CONFIG
-
+    cfg = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     out = DEFAULT_CONFIG.copy()
     for k in ("site", "links", "embeds", "market"):
         out[k] = {**DEFAULT_CONFIG.get(k, {}), **(cfg.get(k, {}) or {})}
-
     if isinstance(cfg.get("market", {}).get("items", None), list) and cfg["market"]["items"]:
         out["market"]["items"] = cfg["market"]["items"]
     return out
 
 CFG = load_config()
 
-st.set_page_config(page_title=CFG["site"]["title"], page_icon="📈", layout="wide")
+st.set_page_config(
+    page_title=CFG["site"]["title"],
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
 css_path = Path("assets/style.css")
 if css_path.exists():
     st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
 icon_path = Path("assets/icon.png")
-ICON = None
-if icon_path.exists():
-    try:
-        ICON = Image.open(icon_path)
-    except Exception:
-        ICON = None
+ICON = Image.open(icon_path) if icon_path.exists() else None
 
 def safe_url(url: str) -> str:
     url = (url or "").strip()
@@ -76,33 +73,9 @@ def safe_url(url: str) -> str:
         return url
     return "https://" + url
 
-def pill(title: str, subtitle: str, url: str):
-    url = safe_url(url)
-    if url:
-        st.markdown(
-            f"""<a class="pill" href="{url}" target="_blank">
-                    <b>{title}</b><span>{subtitle}</span>
-                  </a>""",
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            f"""<span class="pill" style="opacity:.55; cursor:not-allowed;">
-                    <b>{title}</b><span>{subtitle}</span>
-                  </span>""",
-            unsafe_allow_html=True,
-        )
-
 @st.cache_data(ttl=60*10, show_spinner=False)
 def yf_series(ticker: str, period: str = "6mo") -> pd.DataFrame:
-    df = yf.download(
-        tickers=ticker,
-        period=period,
-        interval="1d",
-        auto_adjust=True,
-        progress=False,
-        threads=True,
-    )
+    df = yf.download(tickers=ticker, period=period, interval="1d", auto_adjust=True, progress=False, threads=True)
     if df is None or df.empty:
         return pd.DataFrame()
     df = df.reset_index()
@@ -119,11 +92,26 @@ def last_close_delta(df: pd.DataFrame):
         return v, None, None
     last = float(s.iloc[-1])
     prev = float(s.iloc[-2])
-    delta = last - prev
-    pct = (delta / prev) * 100 if prev != 0 else None
-    return last, delta, pct
+    d = last - prev
+    pct = (d / prev) * 100 if prev != 0 else None
+    return last, d, pct
 
-def render_embed_html(path: str, height: int = 720):
+def sparkline(df: pd.DataFrame, height=90):
+    if df.empty:
+        return None
+    fig = px.line(df, x="Date", y="Close")
+    fig.update_layout(
+        height=height,
+        margin=dict(l=0, r=0, t=0, b=0),
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+def render_embed_html(path: str, height: int = 900):
     p = Path(path)
     if not p.exists():
         st.info(f"埋め込みHTMLが見つからないよ：{path}")
@@ -132,165 +120,171 @@ def render_embed_html(path: str, height: int = 720):
     wrapped = f"""<div class="embed-wrap"><div class="embed-pad">{html}</div></div>"""
     components.html(wrapped, height=height, scrolling=True)
 
-# ---- hero ----
-left, right = st.columns([1, 5], vertical_alignment="center")
-with left:
-    if ICON is not None:
-        st.image(ICON, width=84)
-with right:
+# -----------------
+# Top (Hero)
+# -----------------
+c1, c2 = st.columns([1, 6], vertical_alignment="center")
+with c1:
+    if ICON:
+        st.image(ICON, width=86)
+with c2:
     st.markdown(
-        f"""<div class="hero">
-                <div>
-                  <div class="title">{CFG["site"]["title"]}</div>
-                  <div class="tagline">{CFG["site"]["tagline"]}</div>
-                  <div class="small-muted">@{CFG["site"]["handle"]} / 日本株・指数・学び</div>
-                </div>
-              </div>""",
+        f"""
+        <div class="hero">
+          <div>
+            <div class="hero-title">{CFG["site"]["title"]}</div>
+            <div class="hero-sub">{CFG["site"]["tagline"]}</div>
+            <div class="small">@{CFG["site"]["handle"]} / 日本株・指数・学び</div>
+          </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
 st.write("")
 
-page = st.sidebar.radio("メニュー", ["Home", "Market", "note", "Shop", "Links / 勉強会"], index=0)
+tabs = st.tabs(["Home", "Market", "note", "Shop", "Links/勉強会"])
 
-if page == "Home":
-    st.subheader("入口")
-    st.markdown('<div class="pills">', unsafe_allow_html=True)
-    pill("note", "記事を読む", CFG["links"].get("note_profile", "") or "https://note.com/")
-    pill("Shopify", "ショップ", CFG["links"].get("shopify_store", ""))
-    pill("Instagram", "@" + CFG["site"]["handle"], CFG["links"].get("instagram", ""))
-    pill("Threads", "@" + CFG["site"]["handle"], CFG["links"].get("threads", ""))
-    pill("勉強会申込", "フォーム", CFG["links"].get("study_form", ""))
-    st.markdown("</div>", unsafe_allow_html=True)
+# -----------------
+# Home
+# -----------------
+with tabs[0]:
+    links = CFG["links"]
+    quick = [
+        ("note", "記事", safe_url(links.get("note_profile")) or "https://note.com/", "n"),
+        ("Shopify", "ショップ", safe_url(links.get("shopify_store")), "s"),
+        ("Instagram", "@"+CFG["site"]["handle"], safe_url(links.get("instagram")), "i"),
+        ("Threads", "@"+CFG["site"]["handle"], safe_url(links.get("threads")), "t"),
+        ("勉強会", "申込", safe_url(links.get("study_form")), "e"),
+    ]
 
-    st.divider()
-
-    colA, colB = st.columns([2, 1], gap="large")
-    with colA:
-        st.markdown('<div class="card"><div class="card-title">このサイトでできること</div>', unsafe_allow_html=True)
-        st.markdown(
-            "- note / Shop / SNS / 勉強会への導線を、迷わずまとめて見れる\n"
-            "- 日経平均・TOPIX・ドル円などの動きを、軽くチェックできる\n"
-            "- 日本株に特化した個人サイトだと一目で分かる設計"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with colB:
-        st.markdown('<div class="card"><div class="card-title">更新しやすさ</div>', unsafe_allow_html=True)
-        st.markdown(
-            "リンクや埋め込みは **content_config.yaml と embeds/ のHTML** を編集するだけ。\n"
-            "コードを触らなくても追加しやすい形にしてあるよ。"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.write("")
-    st.subheader("今日の指数（さくっと）")
-
-    period = CFG["market"].get("period_default", "6mo")
-    items = CFG["market"].get("items", [])
-    top_items = items[:3] if len(items) >= 3 else items
-    cols = st.columns(len(top_items)) if top_items else []
-    for col, it in zip(cols, top_items):
-        with col:
-            df = yf_series(it["ticker"], period=period)
-            last, delta, pct = last_close_delta(df)
-            if last is None:
-                st.metric(it["name"], "—")
-            else:
-                if pct is None:
-                    st.metric(it["name"], f"{last:,.2f}")
-                else:
-                    st.metric(it["name"], f"{last:,.2f}", f"{delta:+.2f} ({pct:+.2f}%)")
-
-    st.caption("※無料データ（Yahoo Finance / yfinance）なので遅延や欠損があり得るよ。")
-
-    st.divider()
-    st.subheader("最新note（埋め込み）")
-    with st.expander("表示する", expanded=True):
-        render_embed_html(CFG["embeds"]["note_html_path"], height=980)
-
-elif page == "Market":
-    st.subheader("Market Dashboard")
-    st.caption("日経・TOPIX・ドル円などを、同じ画面でチェック。")
-
-    period = st.selectbox("表示期間", ["1mo", "3mo", "6mo", "1y", "5y"], index=2)
-    items = CFG["market"].get("items", [])
-    if not items:
-        st.warning("market.items が空だよ。content_config.yaml を見てね。")
-        st.stop()
-
-    first3 = items[:3]
-    cols = st.columns(3, gap="medium")
-    for i in range(3):
-        if i >= len(first3):
-            break
-        it = first3[i]
-        with cols[i]:
-            df = yf_series(it["ticker"], period=period)
-            last, delta, pct = last_close_delta(df)
-            if last is None:
-                st.metric(it["name"], "—")
-            else:
-                if pct is None:
-                    st.metric(it["name"], f"{last:,.2f}")
-                else:
-                    st.metric(it["name"], f"{last:,.2f}", f"{delta:+.2f} ({pct:+.2f}%)")
-
-    st.write("")
-    import plotly.express as px
-
-    for it in items:
-        df = yf_series(it["ticker"], period=period)
-        if df.empty:
+    st.markdown('<div class="quick-grid">', unsafe_allow_html=True)
+    for title, sub, url, ico in quick:
+        if url:
             st.markdown(
-                f'<div class="card"><div class="card-title">{it["name"]}</div>'
-                f'データ取得に失敗したみたい（{it["ticker"]}）。</div>',
+                f"""
+                <a class="quick" href="{url}" target="_blank">
+                  <div class="quick-ico">{ico.upper()}</div>
+                  <div>
+                    <div class="quick-title">{title}</div>
+                    <div class="quick-sub">{sub}</div>
+                  </div>
+                </a>
+                """,
                 unsafe_allow_html=True,
             )
-            continue
+        else:
+            st.markdown(
+                f"""
+                <div class="quick" style="opacity:.55;">
+                  <div class="quick-ico">{ico.upper()}</div>
+                  <div>
+                    <div class="quick-title">{title}</div>
+                    <div class="quick-sub">未設定</div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    st.markdown("</div>", unsafe_allow_html=True)
 
+    # Market panel (mock寄せ)
+    items = CFG["market"]["items"]
+    period = CFG["market"].get("period_default", "6mo")
+    st.markdown(
+        """
+        <div class="market-panel">
+          <div class="market-tabs">
+            <div class="market-tab">日本株</div>
+            <div class="market-tab">決算</div>
+            <div class="market-tab">マクロ</div>
+            <div class="market-tab">指数</div>
+          </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    cols = st.columns(3)
+    for col, it in zip(cols, items[:3]):
+        with col:
+            df = yf_series(it["ticker"], period=period)
+            last, d, pct = last_close_delta(df)
+            last_txt = "—" if last is None else f"{last:,.2f}"
+            delta_txt = "" if pct is None else f"{d:+.2f} ({pct:+.2f}%)"
+            st.markdown(
+                f"""
+                <div class="market-card">
+                  <div class="market-name">{it["name"]}</div>
+                  <div class="market-val">{last_txt}</div>
+                  <div class="market-delta">{delta_txt}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            fig = sparkline(df.tail(90), height=90)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.write("")
+    st.markdown('<div class="card"><div class="card-title">今日のメモ</div>', unsafe_allow_html=True)
+    st.text_input("（自分用の一言メモ。公開するなら後で保存機能も付けられるよ）", value="", label_visibility="collapsed")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.write("")
+    st.subheader("最新note（埋め込み）")
+    render_embed_html(CFG["embeds"]["note_html_path"], height=1100)
+
+# -----------------
+# Market
+# -----------------
+with tabs[1]:
+    st.subheader("Market Dashboard")
+    period = st.selectbox("表示期間", ["1mo", "3mo", "6mo", "1y", "5y"], index=2)
+    for it in CFG["market"]["items"]:
+        df = yf_series(it["ticker"], period=period)
+        if df.empty:
+            st.markdown(f'<div class="card"><div class="card-title">{it["name"]}</div>データ取得失敗（{it["ticker"]}）</div>', unsafe_allow_html=True)
+            continue
         fig = px.line(df, x="Date", y="Close", title=f'{it["name"]}（{it["ticker"]}）')
-        fig.update_layout(height=330, margin=dict(l=10, r=10, t=50, b=10))
+        fig.update_layout(height=340, margin=dict(l=10, r=10, t=50, b=10))
         st.plotly_chart(fig, use_container_width=True)
 
-    st.info("日本10年債の“利回りそのもの”を出す場合は別データソース追加が必要。今はyfinanceで取れる日本国債ETFを代替にしてるよ。")
-
-elif page == "note":
+# -----------------
+# note
+# -----------------
+with tabs[2]:
     st.subheader("note（埋め込み）")
-    st.caption("追加したいときは embeds/note_embeds.html に iframe を増やすだけでOK。")
-    render_embed_html(CFG["embeds"]["note_html_path"], height=1200)
+    st.caption("追加は embeds/note_embeds.html に iframe を増やすだけ。")
+    render_embed_html(CFG["embeds"]["note_html_path"], height=1300)
 
-elif page == "Shop":
-    st.subheader("Shopify（商品表示）")
+# -----------------
+# Shop
+# -----------------
+with tabs[3]:
+    st.subheader("Shopify（Buy Button）")
     st.caption("差し替えは embeds/shopify_buy_button.html を貼り替えるだけ。")
-    render_embed_html(CFG["embeds"]["shopify_html_path"], height=860)
+    render_embed_html(CFG["embeds"]["shopify_html_path"], height=900)
 
-else:
+# -----------------
+# Links / Study
+# -----------------
+with tabs[4]:
     st.subheader("Links / 勉強会")
+    insta = safe_url(CFG["links"].get("instagram"))
+    th = safe_url(CFG["links"].get("threads"))
+    form = safe_url(CFG["links"].get("study_form"))
 
     st.markdown('<div class="card"><div class="card-title">SNS</div>', unsafe_allow_html=True)
-    insta = safe_url(CFG["links"].get("instagram", ""))
-    th = safe_url(CFG["links"].get("threads", ""))
     st.write(f"- Instagram：{insta if insta else '（未設定）'}")
     st.write(f"- Threads：{th if th else '（未設定）'}")
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.write("")
     st.markdown('<div class="card"><div class="card-title">勉強会フォーム</div>', unsafe_allow_html=True)
-    form = safe_url(CFG["links"].get("study_form", ""))
     if form:
-        st.success("申込フォームはこちら：")
         st.link_button("勉強会に申し込む", form)
-        st.caption("フォームURL変更は content_config.yaml の links.study_form を更新してね。")
     else:
-        st.warning("まだフォームURLが入ってないよ。content_config.yaml の links.study_form に貼るだけで反映される。")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.write("")
-    st.markdown('<div class="card"><div class="card-title">管理メモ</div>', unsafe_allow_html=True)
-    st.markdown(
-        "- リンク追加：content_config.yaml\n"
-        "- note追加：embeds/note_embeds.html に iframe を追加\n"
-        "- Shopify差し替え：embeds/shopify_buy_button.html を貼り替え"
-    )
+        st.warning("フォームURLは content_config.yaml の links.study_form に貼るだけで反映されるよ。")
     st.markdown("</div>", unsafe_allow_html=True)
